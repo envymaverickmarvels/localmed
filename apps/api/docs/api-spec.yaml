@@ -1,0 +1,425 @@
+/**
+ * @openapi
+ * components:
+ *   schemas:
+ *     User:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *           format: uuid
+ *         phone:
+ *           type: string
+ *         email:
+ *           type: string
+ *         name:
+ *           type: string
+ *         role:
+ *           type: string
+ *           enum: [USER, PHARMACY_OWNER, RIDER, ADMIN]
+ *         isPhoneVerified:
+ *           type: boolean
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *
+ *     Pharmacy:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *           format: uuid
+ *         name:
+ *           type: string
+ *         phone:
+ *           type: string
+ *         address:
+ *           type: string
+ *         city:
+ *           type: string
+ *         location:
+ *           type: object
+ *           properties:
+ *             latitude:
+ *               type: number
+ *             longitude:
+ *               type: number
+ *         rating:
+ *           type: number
+ *         verificationStatus:
+ *           type: string
+ *           enum: [PENDING, APPROVED, REJECTED]
+ *
+ *     Medicine:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *           format: uuid
+ *         name:
+ *           type: string
+ *         genericName:
+ *           type: string
+ *         brandName:
+ *           type: string
+ *         form:
+ *           type: string
+ *           enum: [TABLET, CAPSULE, SYRUP, INJECTION, OINTMENT, DROPS, INHALER, OTHER]
+ *         strength:
+ *           type: string
+ *         manufacturer:
+ *           type: string
+ *         schedule:
+ *           type: string
+ *           enum: [OTC, H1, H, X]
+ *
+ *     Reservation:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *           format: uuid
+ *         pharmacyId:
+ *           type: string
+ *           format: uuid
+ *         status:
+ *           type: string
+ *           enum: [PENDING, CONFIRMED, COMPLETED, CANCELLED, EXPIRED]
+ *         totalAmount:
+ *           type: number
+ *         expiresAt:
+ *           type: string
+ *           format: date-time
+ *         items:
+ *           type: array
+ *           items:
+ *             $ref: '#/components/schemas/ReservationItem'
+ *
+ *     ReservationItem:
+ *       type: object
+ *       properties:
+ *         medicineId:
+ *           type: string
+ *           format: uuid
+ *         medicineName:
+ *           type: string
+ *         quantity:
+ *           type: integer
+ *         price:
+ *           type: number
+ *         subtotal:
+ *           type: number
+ *
+ *     ApiResponse:
+ *       type: object
+ *       properties:
+ *         success:
+ *           type: boolean
+ *         data:
+ *           type: object
+ *         error:
+ *           type: object
+ *           properties:
+ *             code:
+ *               type: string
+ *             message:
+ *               type: string
+ *             details:
+ *               type: object
+ *
+ *     SearchResult:
+ *       type: object
+ *       properties:
+ *         medicine:
+ *           $ref: '#/components/schemas/Medicine'
+ *         pharmacies:
+ *           type: array
+ *           items:
+ *             type: object
+ *             properties:
+ *               pharmacy:
+ *                 $ref: '#/components/schemas/Pharmacy'
+ *               medicine:
+ *                 $ref: '#/components/schemas/Medicine'
+ *               inventory:
+ *                 type: object
+ *                 properties:
+ *                   price:
+ *                     type: number
+ *                   mrp:
+ *                     type: number
+ *                   quantity:
+ *                     type: integer
+ *                   inStock:
+ *                     type: boolean
+ *               distance:
+ *                 type: number
+ *         pagination:
+ *           type: object
+ *           properties:
+ *             page:
+ *               type: integer
+ *             limit:
+ *               type: integer
+ *             total:
+ *               type: integer
+ *             hasMore:
+ *               type: boolean
+ *
+ *   securitySchemes:
+ *     bearerAuth:
+ *       type: http
+ *       scheme: bearer
+ *       bearerFormat: JWT
+ *
+ * paths:
+ *   /health:
+ *     get:
+ *       summary: Health check endpoint
+ *       tags: [Health]
+ *       responses:
+ *         200:
+ *           description: Server is healthy
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 type: object
+ *                 properties:
+ *                   status:
+ *                     type: string
+ *                   timestamp:
+ *                     type: string
+ *                     format: date-time
+ *
+ *   /api/auth/send-otp:
+ *     post:
+ *       summary: Send OTP to phone number
+ *       tags: [Auth]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required:
+ *                 - phone
+ *               properties:
+ *                 phone:
+ *                   type: string
+ *                   description: 10-digit Indian phone number
+ *                 purpose:
+ *                   type: string
+ *                   enum: [LOGIN, REGISTRATION, PASSWORD_RESET, PHONE_VERIFY]
+ *       responses:
+ *         200:
+ *           description: OTP sent successfully
+ *         400:
+ *           description: Invalid phone number
+ *
+ *   /api/auth/verify-otp:
+ *     post:
+ *       summary: Verify OTP and get tokens
+ *       tags: [Auth]
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required:
+ *                 - phone
+ *                 - otp
+ *               properties:
+ *                 phone:
+ *                   type: string
+ *                 otp:
+ *                   type: string
+ *                   minLength: 6
+ *                   maxLength: 6
+ *                 name:
+ *                   type: string
+ *                   description: Required for new users
+ *       responses:
+ *         200:
+ *           description: Authentication successful
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 $ref: '#/components/schemas/ApiResponse'
+ *         401:
+ *           description: Invalid OTP
+ *
+ *   /api/auth/me:
+ *     get:
+ *       summary: Get current user profile
+ *       tags: [Auth]
+ *       security:
+ *         - bearerAuth: []
+ *       responses:
+ *         200:
+ *           description: User profile
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 $ref: '#/components/schemas/ApiResponse'
+ *         401:
+ *           description: Unauthorized
+ *
+ *   /api/medicines/search:
+ *     get:
+ *       summary: Search medicines
+ *       tags: [Medicines]
+ *       parameters:
+ *         - in: query
+ *           name: q
+ *           required: true
+ *           schema:
+ *             type: string
+ *           description: Search query
+ *         - in: query
+ *           name: page
+ *           schema:
+ *             type: integer
+ *             default: 1
+ *         - in: query
+ *           name: limit
+ *           schema:
+ *             type: integer
+ *             default: 20
+ *         - in: query
+ *           name: category
+ *           schema:
+ *             type: string
+ *         - in: query
+ *           name: form
+ *           schema:
+ *             type: string
+ *       responses:
+ *         200:
+ *           description: List of medicines
+ *
+ *   /api/search/medicine:
+ *     get:
+ *       summary: Search medicine availability by location
+ *       tags: [Search]
+ *       parameters:
+ *         - in: query
+ *           name: q
+ *           required: true
+ *           schema:
+ *             type: string
+ *           description: Medicine name to search
+ *         - in: query
+ *           name: latitude
+ *           required: true
+ *           schema:
+ *             type: number
+ *         - in: query
+ *           name: longitude
+ *           required: true
+ *           schema:
+ *             type: number
+ *         - in: query
+ *           name: radius
+ *           schema:
+ *             type: number
+ *             default: 5
+ *           description: Search radius in kilometers
+ *         - in: query
+ *           name: open
+ *           schema:
+ *             type: boolean
+ *           description: Filter for open pharmacies
+ *         - in: query
+ *           name: delivery
+ *           schema:
+ *             type: boolean
+ *           description: Filter for pharmacies with delivery
+ *       responses:
+ *         200:
+ *           description: Search results with pharmacy availability
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 $ref: '#/components/schemas/SearchResult'
+ *
+ *   /api/reservations:
+ *     post:
+ *       summary: Create a reservation
+ *       tags: [Reservations]
+ *       security:
+ *         - bearerAuth: []
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required:
+ *                 - pharmacyId
+ *                 - items
+ *               properties:
+ *                 pharmacyId:
+ *                   type: string
+ *                   format: uuid
+ *                 items:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       inventoryId:
+ *                         type: string
+ *                         format: uuid
+ *                       quantity:
+ *                         type: integer
+ *                 notes:
+ *                   type: string
+ *       responses:
+ *         201:
+ *           description: Reservation created
+ *         400:
+ *           description: Invalid request or insufficient stock
+ *         401:
+ *           description: Unauthorized
+ *
+ *   /api/reservations/my:
+ *     get:
+ *       summary: Get user's reservations
+ *       tags: [Reservations]
+ *       security:
+ *         - bearerAuth: []
+ *       parameters:
+ *         - in: query
+ *           name: status
+ *           schema:
+ *             type: string
+ *             enum: [PENDING, CONFIRMED, COMPLETED, CANCELLED, EXPIRED]
+ *         - in: query
+ *           name: page
+ *           schema:
+ *             type: integer
+ *         - in: query
+ *           name: limit
+ *           schema:
+ *             type: integer
+ *       responses:
+ *         200:
+ *           description: List of reservations
+ *
+ *   /api/pharmacies/{id}:
+ *     get:
+ *       summary: Get pharmacy details
+ *       tags: [Pharmacies]
+ *       parameters:
+ *         - in: path
+ *           name: id
+ *           required: true
+ *           schema:
+ *             type: string
+ *             format: uuid
+ *       responses:
+ *         200:
+ *           description: Pharmacy details
+ *         404:
+ *           description: Pharmacy not found
+ */
